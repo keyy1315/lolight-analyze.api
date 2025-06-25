@@ -1,0 +1,61 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+*.venv/
+
+# Jupyter Notebook 체크포인트
+.ipynb_checkpoints
+
+# 환경 설정 파일
+.env
+*.env
+
+# VSCode 설정 파일
+.vscode/
+
+# macOS
+.DS_Store
+
+# PyCharm 설정
+.idea/
+
+# 테스트 결과
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+*.py,cover
+
+# pytest 캐시
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pyre type checker
+.pyre/
+
+# build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs
+*.log
+logs/
+
+# 기타
+*.sqlite3
