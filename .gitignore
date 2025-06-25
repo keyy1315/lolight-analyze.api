@@ -62,3 +62,6 @@ logs/
 
 # data
 /data/
+
+# model
+/model/video_classifier.keras
