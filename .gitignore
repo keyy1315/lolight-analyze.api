@@ -59,3 +59,6 @@ logs/
 
 # 기타
 *.sqlite3
+
+# data
+/data/
