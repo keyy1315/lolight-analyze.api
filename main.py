@@ -4,8 +4,11 @@ import uvicorn
 import tempfile
 import shutil
 import os
-from utils import extract_frames_every_second
+from utils import extract_and_save_frames, extract_frames_every_second
 import tensorflow as tf
+import numpy as np
+from keras.models import load_model
+import cv2
 
 app = FastAPI(
     title="Video Classifier API",
@@ -23,16 +26,100 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
+    """
+    server test api
+    curl -X GET http://localhost:8082/
+    """
     return {"message": "Hello, World!"}
 
 @app.post("/result")
 async def result(file: UploadFile = File(...)):
-    model = tf.keras.models.load_model('./model/video_classifier.keras')
+    """
+    video classification api
+    curl -X POST http://localhost:8082/result -F "file=@./data/train/lol/000000000000.mp4"
+    """
 
-    class_names = ['lol', 'tft', 'unknown']
+    allowed_extensions = {'.webm', '.mp4', '.avi', '.mov', '.mkv'}
 
-    # TODO: 영상에서 5-10 프레임 추출 후 모델에 넣어서 결과 반환
-    return {"message": "Hello, World!"}
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="No filename provided"
+        )
+    
+    file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+    
+    if file_extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format. Allowed formats: {', '.join(allowed_extensions)}"
+        )
+    
+    max_size = 500 * 1024 * 1024
+    if file.size and file.size > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail="File too large. Maximum size is 100MB."
+        )
+
+    try:
+        model = load_model('./model/video_classifier.keras')  # type: ignore
+        temp_file = None
+        try:
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
+            shutil.copyfileobj(file.file, temp_file)
+            temp_file.close()
+            tmp_path = temp_file.name
+         
+            images = extract_and_save_frames(tmp_path, "data/temp")
+
+            if len(images) == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to extract frames from the video."
+                )
+
+            result = []
+            for image in images:
+                image = cv2.resize(image, (320, 240))
+                image = image.astype(np.float32) / 255.0
+                image = image.reshape(1, 240, 320, 3)
+
+                pred = model.predict(image)  # type: ignore
+                label_index = pred.argmax()
+                labels = ['lol', 'tft', 'unknown']
+                label = labels[label_index]
+                result.append(label)
+
+
+            return {
+                "label": result
+            }
+        finally:
+            if temp_file and hasattr(temp_file, 'name'):
+                try:
+                    if os.path.exists(temp_file.name):
+                        os.unlink(temp_file.name)
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not delete temporary file {temp_file.name}: {cleanup_error}")
+            
+            # temp 디렉토리의 프레임들도 삭제
+            # temp_dir = "data/temp"
+            # if os.path.exists(temp_dir):
+            #     try:
+            #         for temp_file_name in os.listdir(temp_dir):
+            #             file_path = os.path.join(temp_dir, temp_file_name)
+            #             if os.path.isfile(file_path):
+            #                 os.unlink(file_path)
+            #         print(f"✅ Temporary frames in {temp_dir} deleted")
+            #     except Exception as cleanup_error:
+            #         print(f"Warning: Could not delete temporary frames in {temp_dir}: {cleanup_error}")
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analysis failed: {str(e)}"
+        )
 
 @app.post("/data-set")
 async def input_video(file: UploadFile = File(...)):
@@ -68,7 +155,7 @@ async def input_video(file: UploadFile = File(...)):
             tmp_path = temp_file.name
 
             # frame_count = extract_and_save_frames(tmp_path, "data/train/lol")
-            frame_count = extract_frames_every_second(tmp_path, "data/train/tft")
+            frame_count = extract_frames_every_second(tmp_path, "data/train/lol")
 
             if frame_count == 0:
                 raise HTTPException(
