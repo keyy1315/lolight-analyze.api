@@ -24,11 +24,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+model = load_model('./model/video_classifier.keras')  # type: ignore
+labels = ['lol', 'tft', 'unknown']
+
 @app.get("/")
 async def root():
     """
     server test api
     curl -X GET http://localhost:8082/
+
     """
     return {"message": "Hello, World!"}
 
@@ -63,7 +67,6 @@ async def result(file: UploadFile = File(...)):
         )
 
     try:
-        model = load_model('./model/video_classifier.keras')  # type: ignore
         temp_file = None
         try:
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
@@ -87,10 +90,8 @@ async def result(file: UploadFile = File(...)):
 
                 pred = model.predict(image)  # type: ignore
                 label_index = pred.argmax()
-                labels = ['lol', 'tft', 'unknown']
                 label = labels[label_index]
                 result.append(label)
-
 
             return {
                 "label": result
@@ -102,19 +103,7 @@ async def result(file: UploadFile = File(...)):
                         os.unlink(temp_file.name)
                 except Exception as cleanup_error:
                     print(f"Warning: Could not delete temporary file {temp_file.name}: {cleanup_error}")
-            
-            # temp 디렉토리의 프레임들도 삭제
-            # temp_dir = "data/temp"
-            # if os.path.exists(temp_dir):
-            #     try:
-            #         for temp_file_name in os.listdir(temp_dir):
-            #             file_path = os.path.join(temp_dir, temp_file_name)
-            #             if os.path.isfile(file_path):
-            #                 os.unlink(file_path)
-            #         print(f"✅ Temporary frames in {temp_dir} deleted")
-            #     except Exception as cleanup_error:
-            #         print(f"Warning: Could not delete temporary frames in {temp_dir}: {cleanup_error}")
-
+        
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -154,7 +143,6 @@ async def input_video(file: UploadFile = File(...)):
             temp_file.close()
             tmp_path = temp_file.name
 
-            # frame_count = extract_and_save_frames(tmp_path, "data/train/lol")
             frame_count = extract_frames_every_second(tmp_path, "data/train/unknown")
 
             if frame_count == 0:
