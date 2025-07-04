@@ -155,7 +155,7 @@ async def input_video(file: UploadFile = File(...)):
             tmp_path = temp_file.name
 
             # frame_count = extract_and_save_frames(tmp_path, "data/train/lol")
-            frame_count = extract_frames_every_second(tmp_path, "data/train/lol")
+            frame_count = extract_frames_every_second(tmp_path, "data/train/unknown")
 
             if frame_count == 0:
                 raise HTTPException(

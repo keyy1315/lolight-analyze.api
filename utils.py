@@ -29,37 +29,27 @@ def extract_and_save_frames(video_path, output_folder, frame_count=5):
     return images
 
 def extract_frames_every_second(video_path, output_folder, max_seconds=None):
-    """
-    영상에서 1초마다 프레임을 추출합니다.
-    
-    Args:
-        video_path (str): 비디오 파일 경로
-        output_folder (str): 프레임을 저장할 폴더 경로
-        max_seconds (int, optional): 최대 추출할 초 수. None이면 전체 영상에서 추출
-    
-    Returns:
-        int: 추출된 프레임 수
-    """
+    # 영상에서 3초마다 프레임 추출
     os.makedirs(output_folder, exist_ok=True)
     vidcap = cv2.VideoCapture(video_path)
     
-    # 비디오 정보 가져오기
+    # 비디오 정보
     fps = vidcap.get(cv2.CAP_PROP_FPS)
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
     total_duration = total_frames / fps
     
     print(f"📹 비디오 정보: {fps:.2f} FPS, 총 {total_duration:.2f}초")
     
-    # 1초마다 프레임 선택 (FPS만큼 건너뛰기)
-    frames_per_second = int(fps)
+    # 3초마다 프레임 선택 (FPS * 3만큼 건너뛰기)
+    frames_per_3_seconds = int(fps * 3)
     selected_frames = []
     
     if max_seconds:
-        max_frames = min(max_seconds * frames_per_second, total_frames)
-        for i in range(0, max_frames, frames_per_second):
+        max_frames = min(max_seconds * frames_per_3_seconds, total_frames)
+        for i in range(0, max_frames, frames_per_3_seconds):
             selected_frames.append(i)
     else:
-        for i in range(0, total_frames, frames_per_second):
+        for i in range(0, total_frames, frames_per_3_seconds):
             selected_frames.append(i)
     
     random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
@@ -69,14 +59,14 @@ def extract_frames_every_second(video_path, output_folder, max_seconds=None):
         vidcap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
         success, image = vidcap.read()
         if success:
-            image = cv2.resize(image, (1280, 720))
+            image = cv2.resize(image, (1920, 1080))
             
-            # 시간 정보를 파일명에 포함
-            second = frame_num // frames_per_second
+            # 시간 정보를 파일명에 포함 (3초 단위)
+            second = frame_num // frames_per_3_seconds * 3
             filename = os.path.join(output_folder, f"{random_str}_{second:03d}s_{count}.jpg")
             cv2.imwrite(filename, image)
             count += 1
 
     vidcap.release()
-    print(f"✅ 1초마다 {count}개 프레임을 {output_folder}에 추출했습니다")
+    print(f"✅ 3초마다 {count}개 프레임을 {output_folder}에 추출했습니다")
     return count
