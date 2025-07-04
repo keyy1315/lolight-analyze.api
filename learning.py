@@ -17,6 +17,8 @@ epochs = 100
 img_height = 360
 img_width = 640
 
+class_names = ['lol', 'tft', 'unknown']
+
 # === 데이터 불러오기 ===
 train_ds = tf.keras.utils.image_dataset_from_directory( #type: ignore
     train_dir,
@@ -25,7 +27,8 @@ train_ds = tf.keras.utils.image_dataset_from_directory( #type: ignore
     labels='inferred',
     label_mode='int',
     shuffle=True,
-    seed=123
+    seed=123,
+    class_names=class_names
 )
 
 val_ds = tf.keras.utils.image_dataset_from_directory( #type: ignore
@@ -34,7 +37,8 @@ val_ds = tf.keras.utils.image_dataset_from_directory( #type: ignore
     batch_size=batch_size,
     labels='inferred',
     label_mode='int',
-    shuffle=False
+    shuffle=False,
+    class_names=class_names
 )
 
 AUTOTUNE = tf.data.AUTOTUNE
@@ -133,7 +137,6 @@ history = model.fit(
     epochs=epochs,
     initial_epoch=initial_epoch,
     callbacks=callbacks,
-    verbose=2
 )
 
 # === 최종 모델 저장 ===

@@ -1,5 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 import uvicorn
 import tempfile
 import shutil
@@ -24,9 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-model = load_model('./model/video_classifier.keras')  # type: ignore
-labels = ['lol', 'tft', 'unknown']
-
 @app.get("/")
 async def root():
     """
@@ -42,7 +40,9 @@ async def result(file: UploadFile = File(...)):
     video classification api
     curl -X POST http://localhost:8082/result -F "file=@./data/train/lol/000000000000.mp4"
     """
-
+    model = load_model('./model/video_classifier.keras')  # type: ignore
+    labels = ['lol', 'tft', 'unknown']
+    
     allowed_extensions = {'.webm', '.mp4', '.avi', '.mov', '.mkv'}
 
     if not file.filename:
@@ -54,7 +54,7 @@ async def result(file: UploadFile = File(...)):
     file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
     
     if file_extension not in allowed_extensions:
-        raise HTTPException(
+        raise HTTPException( 
             status_code=400,
             detail=f"Unsupported file format. Allowed formats: {', '.join(allowed_extensions)}"
         )
@@ -82,19 +82,23 @@ async def result(file: UploadFile = File(...)):
                     detail="Failed to extract frames from the video."
                 )
 
-            result = []
+
+            all_preds = []
             for image in images:
-                image = cv2.resize(image, (320, 240))
+                image = cv2.resize(image, (640, 360))
                 image = image.astype(np.float32) / 255.0
-                image = image.reshape(1, 240, 320, 3)
+                image = image.reshape(1, 360, 640, 3)
 
                 pred = model.predict(image)  # type: ignore
-                label_index = pred.argmax()
-                label = labels[label_index]
-                result.append(label)
+                all_preds.append(pred[0])
+            
+            avg_pred = np.mean(all_preds, axis=0)
+            label_index = np.argmax(avg_pred)
+            final_label = labels[label_index]
 
             return {
-                "label": result
+                "label": final_label,
+                "score": float(avg_pred[label_index])
             }
         finally:
             if temp_file and hasattr(temp_file, 'name'):
@@ -111,67 +115,85 @@ async def result(file: UploadFile = File(...)):
         )
 
 @app.post("/data-set")
-async def input_video(file: UploadFile = File(...)):
+async def input_video(files: List[UploadFile] = File(...), dir_name: str = Form(...)):
     allowed_extensions = {'.webm', '.mp4', '.avi', '.mov', '.mkv'}
     
-    if not file.filename:
+    if not files:
         raise HTTPException(
             status_code=400,
-            detail="No filename provided"
+            detail="No files provided"
         )
     
-    file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+    # 파일 검증
+    for file in files:
+        if not file.filename:
+            raise HTTPException(
+                status_code=400,
+                detail="No filename provided"
+            )
+        
+        file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+        
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file format: {file.filename}. Allowed formats: {', '.join(allowed_extensions)}"
+            )
+        
+        max_size = 500 * 1024 * 1024
+        if file.size and file.size > max_size:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large: {file.filename}. Maximum size is 500MB."
+            )
     
-    if file_extension not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file format. Allowed formats: {', '.join(allowed_extensions)}"
-        )
-    
-    max_size = 500 * 1024 * 1024
-    if file.size and file.size > max_size:
-        raise HTTPException(
-            status_code=413,
-            detail="File too large. Maximum size is 100MB."
-        )
+    total_frame_count = 0
+    processed_files = []
     
     try:
-        temp_file = None
-        try:
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
-            shutil.copyfileobj(file.file, temp_file)
-            temp_file.close()
-            tmp_path = temp_file.name
+        for file in files:
+            temp_file = None
+            try:
+                if not file.filename:
+                    continue
+                    
+                file_extension = '.' + file.filename.split('.')[-1].lower() if '.' in file.filename else '.mp4'
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
+                shutil.copyfileobj(file.file, temp_file)
+                temp_file.close()
+                tmp_path = temp_file.name
 
-            frame_count = extract_frames_every_second(tmp_path, "data/train/unknown")
+                frame_count = extract_frames_every_second(tmp_path, dir_name)
 
-            if frame_count == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Failed to extract frames from the video."
-                )
-            
-            
-        finally:
-            if temp_file and hasattr(temp_file, 'name'):
-                try:
-                    if os.path.exists(temp_file.name):
-                        os.unlink(temp_file.name)
-                except Exception as cleanup_error:
-                    print(f"Warning: Could not delete temporary file {temp_file.name}: {cleanup_error}")
+                if frame_count == 0:
+                    print(f"Warning: Failed to extract frames from {file.filename}")
+                else:
+                    total_frame_count += frame_count
+                    processed_files.append(file.filename)
+                    print(f"✅ {file.filename}: {frame_count} frames extracted")
+                
+            finally:
+                if temp_file and hasattr(temp_file, 'name'):
+                    try:
+                        if os.path.exists(temp_file.name):
+                            os.unlink(temp_file.name)
+                    except Exception as cleanup_error:
+                        print(f"Warning: Could not delete temporary file {temp_file.name}: {cleanup_error}")
+        
+        if total_frame_count == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to extract frames from any video."
+            )
         
         return {
-            "frame_count": frame_count
+            "total_frame_count": total_frame_count,
+            "processed_files": processed_files,
+            "total_files": len(files),
+            "successful_files": len(processed_files)
         }
 
     except Exception as e:
-        if 'temp_file' in locals() and temp_file and hasattr(temp_file, 'name'):
-            try:
-                if os.path.exists(temp_file.name):
-                    os.unlink(temp_file.name)
-            except Exception as cleanup_error:
-                print(f"Warning: Could not delete temporary file {temp_file.name}: {cleanup_error}")
-
         raise HTTPException(
             status_code=500,
             detail=f"Analysis failed: {str(e)}"
