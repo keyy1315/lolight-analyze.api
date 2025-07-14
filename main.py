@@ -152,17 +152,24 @@ async def result(file: UploadFile = File(...)):
             return {
                 "label": final_label,
                 "score": confidence_score,  # 신뢰도 점수
-                "lol_score": avg_pred[0],
-                "tft_score": avg_pred[1]
+                "lol_score": float(avg_pred[0]),  # numpy 타입을 float로 변환
+                "tft_score": float(avg_pred[1])   # numpy 타입을 float로 변환
             }
         finally:
-            # 임시 파일 정리
-            if temp_file and hasattr(temp_file, 'name'):
+            # data/temp 디렉토리의 임시 파일들 정리 (unknown이 아닐 때만)
+            if final_label in ['lol', 'tft']:
                 try:
-                    if os.path.exists(temp_file.name):
-                        os.unlink(temp_file.name)
+                    temp_dir_path = "data/temp"
+                    if os.path.exists(temp_dir_path):
+                        for temp_file_name in os.listdir(temp_dir_path):
+                            temp_file_path = os.path.join(temp_dir_path, temp_file_name)
+                            if os.path.isfile(temp_file_path):
+                                os.unlink(temp_file_path)
+                        print(f"🧹 data/temp 디렉토리 정리 완료")
                 except Exception as cleanup_error:
-                    print(f"Warning: Could not delete temporary file {temp_file.name}: {cleanup_error}")
+                    print(f"Warning: Could not clean up data/temp directory: {cleanup_error}")
+            else:
+                print(f"⚠️ unknown 분류로 인해 임시 파일을 보존합니다")
         
     except Exception as e:
         # 처리 중 발생한 오류 처리
