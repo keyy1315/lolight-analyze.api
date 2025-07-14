@@ -3,7 +3,7 @@ import cv2
 import random
 import string
 
-def extract_and_save_frames(video_path, output_folder, frame_count=5):
+def extract_and_save_frames(video_path, output_folder, model, frame_count=20):
     os.makedirs(output_folder, exist_ok=True)
     vidcap = cv2.VideoCapture(video_path)
     total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -13,20 +13,19 @@ def extract_and_save_frames(video_path, output_folder, frame_count=5):
     random_str = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
     
     count = 0
-    images = []
+    image_paths = []
     for frame_num in selected_frames:
         vidcap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
         success, image = vidcap.read()
         if success:
             image = cv2.resize(image, (1280, 720))
-            images.append(image)
-            filename = os.path.join(output_folder, f"{random_str}_{count}.jpg")
-            cv2.imwrite(filename, image)
+            image_paths.append(os.path.join(output_folder, f"{random_str}_{count}.jpg"))
+            cv2.imwrite(image_paths[-1], image)
             count += 1
 
     vidcap.release()
     print(f"✅ Extracted {count} frames to {output_folder}")
-    return images
+    return image_paths
 
 def extract_frames_every_second(video_path, dir_name, max_seconds=None):
     # 영상에서 5초마다 프레임 추출
