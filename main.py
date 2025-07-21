@@ -46,7 +46,7 @@ async def root():
     """
     return {"message": "Hello, World!"}
 
-@app.post("/result")
+@app.post("/api/result")
 async def result(file: UploadFile = File(...)):
     """
     비디오 분류 API 엔드포인트
@@ -152,8 +152,8 @@ async def result(file: UploadFile = File(...)):
             return {
                 "label": final_label,
                 "score": confidence_score,  # 신뢰도 점수
-                "lol_score": float(avg_pred[0]),  # numpy 타입을 float로 변환
-                "tft_score": float(avg_pred[1])   # numpy 타입을 float로 변환
+                "lolScore": float(avg_pred[0]),  # numpy 타입을 float로 변환
+                "tftScore": float(avg_pred[1])   # numpy 타입을 float로 변환
             }
         finally:
             # data/temp 디렉토리의 임시 파일들 정리 (unknown이 아닐 때만)
@@ -183,6 +183,7 @@ async def input_video(files: List[UploadFile] = File(...), dir_name: str = Form(
     """
     데이터셋 준비 엔드포인트
     여러 비디오 파일을 받아서 훈련 데이터셋을 위한 프레임을 추출
+    curl -X POST http://localhost:8082/data-set -F "files=@./data/train/lol/000000000000.mp4" -F "dir_name=lol"
     """
     # 허용된 비디오 파일 확장자 정의
     allowed_extensions = {'.webm', '.mp4', '.avi', '.mov', '.mkv'}
